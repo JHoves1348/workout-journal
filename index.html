@@ -316,13 +316,11 @@
   }
 
   workoutDate.addEventListener('change', async () => {
-  // Clear inputs immediately
+  currentWorkoutDocId = null;
   workoutName.value = '';
   workoutText.value = '';
-  recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
-  currentWorkoutDocId = null;
+  recentWorkoutContent.innerHTML = 'Loading...';
 
-  // Fetch the most recent workout for this user on the selected date
   try {
     const snapshot = await db.collection('workouts')
       .where('username', '==', currentUser)
@@ -335,18 +333,24 @@
       const doc = snapshot.docs[0];
       const data = doc.data();
 
-      // Set the workout name and text fields to the saved workout details
       workoutName.value = data.name || '';
       workoutText.value = data.text || '';
       currentWorkoutDocId = doc.id;
 
-      // Also load the recent workout summary for this name
+      // Load recent workout summary for this workout name
       loadMostRecentWorkoutWithName(data.name);
+    } else {
+      // No workout found for this date
+      workoutName.value = '';
+      workoutText.value = '';
+      recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
     }
   } catch (e) {
-    console.error('Error loading workout for selected date:', e);
+    console.error('Error loading workout for date:', e);
+    recentWorkoutContent.innerHTML = 'Error loading workout.';
   }
 });
+
 
   workoutName.addEventListener('input', () => {
     loadMostRecentWorkoutWithName(workoutName.value.trim());
