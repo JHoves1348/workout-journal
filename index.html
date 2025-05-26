@@ -316,8 +316,11 @@
   }
 
   workoutDate.addEventListener('change', () => {
-    loadWorkoutForDateAndName(workoutDate.value, workoutName.value.trim());
-  });
+  workoutName.value = '';            // Clear the workout name input on date change
+  workoutText.value = '';            // Clear workout text input
+  recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.'; // Clear recent summary
+  currentWorkoutDocId = null;
+});
 
   workoutName.addEventListener('input', () => {
     loadMostRecentWorkoutWithName(workoutName.value.trim());
