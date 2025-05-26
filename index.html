@@ -133,7 +133,7 @@
     loginSection.style.display = 'none';
     appSection.style.display = 'block';
 
-    workoutDate.value = new Date().toISOString().slice(0,10);
+    workoutDate.value = new Date().toISOString().slice(0, 10);
     clearInputs();
     loadWorkoutForDateAndName(workoutDate.value, workoutName.value.trim());
     loadPastWorkouts();
@@ -272,6 +272,7 @@
       await db.collection('workouts').doc(docId).delete();
       alert('Workout deleted.');
       loadPastWorkouts();
+      clearInputs();
     } catch (e) {
       alert("Error deleting workout: " + e.message);
     }
@@ -296,9 +297,16 @@
         const data = doc.data();
         const div = document.createElement('div');
         div.innerHTML = `
-          <span>${data.date} - ${data.name}: ${escapeHtml(data.text).slice(0, 50)}...</span>
+          <span style="cursor: pointer;"><strong>${data.date}</strong> - ${data.name}: ${escapeHtml(data.text).slice(0, 50)}...</span>
           <button class="deleteBtn" onclick="deleteWorkout('${doc.id}')">Delete</button>
         `;
+        div.querySelector('span').addEventListener('click', () => {
+          workoutDate.value = data.date;
+          workoutName.value = data.name;
+          workoutText.value = data.text;
+          currentWorkoutDocId = doc.id;
+          loadMostRecentWorkoutWithName(data.name);
+        });
         pastWorkouts.appendChild(div);
       });
     } catch (e) {
@@ -322,6 +330,7 @@
 
   checkLogin();
 </script>
+
 
 </body>
 </html>
