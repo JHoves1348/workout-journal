@@ -1,0 +1,6 @@
+git init
+git add .
+git commit -m "Initial workout journal"
+git branch -M main
+git remote add origin https://github.com/JHoves1348/workout-journal.git
+git push -u origin main
