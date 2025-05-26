@@ -1,70 +1,65 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Workout Journal</title>
-  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      margin: 0;
+      padding: 1rem;
+      background: #f4f4f4;
     }
-    input, textarea, button, select {
-      display: block;
-      margin: 10px 0;
-      padding: 8px;
+    #login-section, #app-section {
+      max-width: 600px;
+      margin: auto;
+    }
+    textarea, input[type="text"], input[type="date"] {
       width: 100%;
-      max-width: 400px;
+      margin: 0.5rem 0;
+      padding: 0.5rem;
     }
-    #pastWorkouts div {
-      margin-bottom: 10px;
-      padding: 10px;
+    .workout-entry {
       border: 1px solid #ccc;
+      background: #fff;
+      margin-top: 1rem;
+      padding: 0.5rem;
     }
-    .row {
+    .recent-container {
       display: flex;
-      flex-direction: row;
-      gap: 20px;
-      align-items: flex-start;
+      gap: 1rem;
     }
     .column {
       flex: 1;
     }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <div id="authSection">
-    <h2>Enter Username</h2>
-    <input type="text" id="usernameInput" placeholder="Username" />
+  <div id="login-section">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Enter your username">
     <button onclick="login()">Login</button>
   </div>
 
-  <div id="app" style="display: none">
+  <div id="app-section" style="display:none;">
     <h2>Workout Journal</h2>
-    <label for="datePicker">Select Date:</label>
-    <input type="date" id="datePicker" />
-
-    <label for="workoutTitle">Workout Name:</label>
-    <input type="text" id="workoutTitle" placeholder="e.g. Chest" oninput="loadMostRecentWorkout()"/>
-
-    <div class="row">
+    <input type="date" id="workout-date">
+    <input type="text" id="workout-name" placeholder="Workout name (e.g., Chest)">
+    <div class="recent-container">
       <div class="column">
-        <label for="workoutDetails">Workout Details:</label>
-        <textarea id="workoutDetails" rows="10"></textarea>
+        <textarea id="workout-details" placeholder="Workout details..."></textarea>
         <button onclick="saveWorkout()">Save Workout</button>
       </div>
       <div class="column">
-        <div>
-          <strong>Most Recent Details for this Workout Name:</strong>
-          <div id="recentWorkoutDisplay">(none)</div>
-        </div>
+        <div id="recent-workout"></div>
       </div>
     </div>
 
     <h3>Past 6 Workouts</h3>
-    <div id="pastWorkouts">Loading...</div>
+    <div id="past-workouts"></div>
   </div>
 
   <script>
@@ -79,106 +74,102 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-
-    let currentUser = localStorage.getItem("workoutUsername") || null;
+    let currentUser = null;
 
     function login() {
-      const input = document.getElementById("usernameInput").value.trim();
-      if (input) {
-        currentUser = input;
-        localStorage.setItem("workoutUsername", input);
-        showApp();
-      }
+      const usernameInput = document.getElementById('username');
+      const username = usernameInput.value.trim();
+      if (!username) return;
+      currentUser = username;
+      localStorage.setItem('workoutUser', currentUser);
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('app-section').style.display = 'block';
+      loadPastWorkouts();
     }
 
-    function showApp() {
-      document.getElementById("authSection").style.display = "none";
-      document.getElementById("app").style.display = "block";
-      document.getElementById("datePicker").valueAsDate = new Date();
-      loadWorkoutForDate();
-      loadRecentWorkouts();
-    }
-
-    document.getElementById("datePicker").addEventListener("change", loadWorkoutForDate);
-
-    function getDateKey() {
-      const date = document.getElementById("datePicker").value;
-      return `${currentUser}_${date}`;
-    }
-
-    async function saveWorkout() {
-      const workoutDetails = document.getElementById("workoutDetails").value;
-      const workoutTitle = document.getElementById("workoutTitle").value;
-      const date = document.getElementById("datePicker").value;
-      const key = getDateKey();
-
-      await db.collection("workouts").doc(key).set({
+    function saveWorkout() {
+      const date = document.getElementById('workout-date').value;
+      const details = document.getElementById('workout-details').value;
+      const name = document.getElementById('workout-name').value.trim();
+      if (!date || !details || !name || !currentUser) return;
+      const docId = `${currentUser}_${date}`;
+      db.collection('workouts').doc(docId).set({
         username: currentUser,
         date,
-        title: workoutTitle,
-        details: workoutDetails,
+        name,
+        details,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => {
+        loadPastWorkouts();
+        loadRecentWorkoutByName(name);
       });
-
-      loadRecentWorkouts();
     }
 
-    async function loadWorkoutForDate() {
-      const key = getDateKey();
-      const doc = await db.collection("workouts").doc(key).get();
-      if (doc.exists) {
-        const data = doc.data();
-        document.getElementById("workoutTitle").value = data.title || "";
-        document.getElementById("workoutDetails").value = data.details || "";
-      } else {
-        document.getElementById("workoutTitle").value = "";
-        document.getElementById("workoutDetails").value = "";
-      }
-      loadMostRecentWorkout();
+    function loadWorkout(date) {
+      const docId = `${currentUser}_${date}`;
+      db.collection('workouts').doc(docId).get().then(doc => {
+        if (doc.exists) {
+          document.getElementById('workout-name').value = doc.data().name;
+          document.getElementById('workout-details').value = doc.data().details;
+          loadRecentWorkoutByName(doc.data().name);
+        } else {
+          document.getElementById('workout-details').value = '';
+        }
+      });
     }
 
-    async function loadRecentWorkouts() {
-      const snapshot = await db.collection("workouts")
-        .where("username", "==", currentUser)
-        .orderBy("timestamp", "desc")
+    function loadPastWorkouts() {
+      db.collection('workouts')
+        .where('username', '==', currentUser)
+        .orderBy('timestamp', 'desc')
         .limit(6)
-        .get();
-
-      const pastDiv = document.getElementById("pastWorkouts");
-      pastDiv.innerHTML = "";
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const el = document.createElement("div");
-        el.innerHTML = `<strong>${d.date}</strong> - ${d.title}<br/>${d.details}`;
-        pastDiv.appendChild(el);
-      });
+        .get()
+        .then(snapshot => {
+          const container = document.getElementById('past-workouts');
+          container.innerHTML = '';
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const div = document.createElement('div');
+            div.className = 'workout-entry';
+            div.innerText = `${data.date}: ${data.name}\n${data.details}`;
+            container.appendChild(div);
+          });
+        });
     }
 
-    async function loadMostRecentWorkout() {
-      const name = document.getElementById("workoutTitle").value.trim();
-      if (!name) {
-        document.getElementById("recentWorkoutDisplay").innerText = "(none)";
-        return;
-      }
-      const snapshot = await db.collection("workouts")
-        .where("username", "==", currentUser)
-        .where("title", "==", name)
-        .orderBy("timestamp", "desc")
+    function loadRecentWorkoutByName(name) {
+      db.collection('workouts')
+        .where('username', '==', currentUser)
+        .where('name', '==', name)
+        .orderBy('timestamp', 'desc')
         .limit(1)
-        .get();
+        .get()
+        .then(snapshot => {
+          const recentDiv = document.getElementById('recent-workout');
+          recentDiv.innerHTML = '';
+          if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            recentDiv.innerText = `${data.date}:\n${data.details}`;
+          }
+        });
+    }
 
-      const box = document.getElementById("recentWorkoutDisplay");
-      if (!snapshot.empty) {
-        const data = snapshot.docs[0].data();
-        box.innerText = data.details;
-      } else {
-        box.innerText = "(none)";
+    document.getElementById('workout-date').addEventListener('change', (e) => {
+      const date = e.target.value;
+      if (date && currentUser) {
+        loadWorkout(date);
       }
-    }
+    });
 
-    if (currentUser) {
-      showApp();
-    }
+    window.onload = () => {
+      const savedUser = localStorage.getItem('workoutUser');
+      if (savedUser) {
+        currentUser = savedUser;
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('app-section').style.display = 'block';
+        loadPastWorkouts();
+      }
+    };
   </script>
 </body>
 </html>
