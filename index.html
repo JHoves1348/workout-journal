@@ -1,21 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Workout Journal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 1rem; }
+    #login-section, #app-section { margin-bottom: 2rem; }
+    #workout-list { list-style: none; padding-left: 0; }
+    #workout-list li { background: #eee; margin: 0.5rem 0; padding: 0.5rem; border-radius: 5px; }
+  </style>
 </head>
 <body>
   <h1>Workout Journal</h1>
-  <form id="workout-form">
-    <input type="date" id="date" required />
-    <input type="text" id="exercise" placeholder="Exercise" required />
-    <input type="text" id="details" placeholder="Sets/Reps or Notes" required />
-    <button type="submit">Add Workout</button>
-  </form>
 
-  <ul id="workout-list"></ul>
+  <div id="login-section">
+    <label>
+      Enter Username:
+      <input type="text" id="username-input" />
+    </label>
+    <button id="login-btn">Log In</button>
+  </div>
 
-  <script src="app.js"></script>
+  <div id="app-section" style="display:none;">
+    <h2>Welcome, <span id="current-user"></span>!</h2>
+
+    <form id="workout-form">
+      <input type="text" id="workout-input" placeholder="Workout description" required />
+      <button type="submit">Add Workout</button>
+    </form>
+
+    <ul id="workout-list"></ul>
+    <button id="logout-btn">Log Out</button>
+  </div>
+
+  <script>
+    const loginSection = document.getElementById('login-section');
+    const appSection = document.getElementById('app-section');
+    const usernameInput = document.getElementById('username-input');
+    const loginBtn = document.getElementById('login-btn');
+    const currentUserSpan = document.getElementById('current-user');
+    const workoutForm = document.getElementById('workout-form');
+    const workoutInput = document.getElementById('workout-input');
+    const workoutList = document.getElementById('workout-list');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    let currentUser = null;
+    let workouts = [];
+
+    function saveWorkouts() {
+      localStorage.setItem('workouts_' + currentUser, JSON.stringify(workouts));
+    }
+
+    function loadWorkouts() {
+      const saved = localStorage.getItem('workouts_' + currentUser);
+      workouts = saved ? JSON.parse(saved) : [];
+    }
+
+    function renderWorkouts() {
+      workoutList.innerHTML = '';
+      workouts.forEach((w, i) => {
+        const li = document.createElement('li');
+        li.textContent = w;
+        workoutList.appendChild(li);
+      });
+    }
+
+    loginBtn.onclick = () => {
+      const name = usernameInput.value.trim();
+      if (!name) {
+        alert('Please enter a username');
+        return;
+      }
+      currentUser = name;
+      currentUserSpan.textContent = currentUser;
+      loginSection.style.display = 'none';
+      appSection.style.display = 'block';
+      loadWorkouts();
+      renderWorkouts();
+    };
+
+    workoutForm.onsubmit = (e) => {
+      e.preventDefault();
+      const workout = workoutInput.value.trim();
+      if (!workout) return;
+      workouts.push(workout);
+      saveWorkouts();
+      renderWorkouts();
+      workoutInput.value = '';
+      workoutInput.focus();
+    };
+
+    logoutBtn.onclick = () => {
+      currentUser = null;
+      workouts = [];
+      loginSection.style.display = 'block';
+      appSection.style.display = 'none';
+      usernameInput.value = '';
+    };
+  </script>
 </body>
 </html>
