@@ -8,8 +8,10 @@
   body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 1rem; }
   #appSection { display: none; }
   textarea { width: 100%; height: 80px; margin-top: 0.5rem; }
-  #pastWorkouts > div { border: 1px solid #ccc; padding: 0.5rem; margin: 0.25rem 0; border-radius: 4px; }
+  #pastWorkouts > div { border: 1px solid #ccc; padding: 0.5rem; margin: 0.25rem 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
   button { padding: 0.5rem 1rem; margin-top: 0.5rem; }
+  .deleteBtn { background-color: #e74c3c; color: white; border: none; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: 3px; }
+  .deleteBtn:hover { background-color: #c0392b; }
 </style>
 </head>
 <body>
@@ -41,7 +43,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
 <script>
-  // Your Firebase config - REPLACE with your own!
   const firebaseConfig = {
     apiKey: "AIzaSyC3Jon13meRVHu1-Wj7nGQbrevEi8LynbU",
     authDomain: "workoutjournal-c02f1.firebaseapp.com",
@@ -67,7 +68,6 @@
 
   let currentUser = null;
 
-  // Check if username saved in localStorage (auto-login)
   function checkLogin() {
     const savedUser = localStorage.getItem('workoutUser');
     if (savedUser) {
@@ -75,7 +75,6 @@
     }
   }
 
-  // Login function
   function loginUser(username) {
     currentUser = username;
     localStorage.setItem('workoutUser', username);
@@ -83,14 +82,12 @@
     loginSection.style.display = 'none';
     appSection.style.display = 'block';
 
-    // Set date picker default to today
     workoutDate.value = new Date().toISOString().slice(0,10);
 
     loadWorkoutForDate(workoutDate.value);
     loadPastWorkouts();
   }
 
-  // Logout function
   function logoutUser() {
     localStorage.removeItem('workoutUser');
     currentUser = null;
@@ -166,6 +163,17 @@
     }
   }
 
+  async function deleteWorkout(docId) {
+    if (!confirm("Are you sure you want to delete this workout?")) return;
+    try {
+      await db.collection('workouts').doc(docId).delete();
+      alert('Workout deleted.');
+      loadPastWorkouts();
+    } catch (e) {
+      alert("Error deleting workout: " + e.message);
+    }
+  }
+
   async function loadPastWorkouts() {
     pastWorkouts.innerHTML = "Loading...";
     try {
@@ -184,7 +192,20 @@
       snapshot.forEach(doc => {
         const data = doc.data();
         const div = document.createElement('div');
-        div.textContent = `${data.date}: ${data.text}`;
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = `${data.date}: ${data.text}`;
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.className = 'deleteBtn';
+        delBtn.onclick = () => deleteWorkout(doc.id);
+
+        div.appendChild(textSpan);
+        div.appendChild(delBtn);
         pastWorkouts.appendChild(div);
       });
     } catch (e) {
@@ -196,7 +217,6 @@
   workoutDate.addEventListener('change', () => loadWorkoutForDate(workoutDate.value));
   saveWorkoutBtn.addEventListener('click', saveWorkout);
 
-  // Auto-login if username saved
   checkLogin();
 </script>
 
