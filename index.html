@@ -5,21 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workout Journal</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 1em; max-width: 600px; margin: auto; }
-    input, textarea, button, select { display: block; width: 100%; margin-bottom: 1em; padding: 0.5em; }
-    #recentWorkoutBox { border: 1px solid #ccc; padding: 1em; background-color: #f9f9f9; }
+    body { font-family: Arial, sans-serif; padding: 1em; max-width: 700px; margin: auto; }
+    input, textarea, button { display: block; width: 100%; margin-bottom: 1em; padding: 0.5em; }
+    #recentWorkoutBox { border: 1px solid #ccc; padding: 1em; background-color: #f0f0f0; white-space: pre-wrap; }
     .hidden { display: none; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
 </head>
 <body>
-  <h1>Workout Journal</h1>
-  <input type="date" id="workoutDate" />
-  <input type="text" id="workoutName" placeholder="Workout Name (e.g., Chest)" />
-  <textarea id="workoutDetails" rows="6" placeholder="Workout Details..."></textarea>
-  <button onclick="saveWorkout()">Save Workout</button>
-  <div id="recentWorkoutBox" class="hidden"></div>
+  <div class="top-bar">
+    <h1>Workout Journal</h1>
+    <button id="logoutBtn" class="hidden" onclick="logout()">Logout</button>
+  </div>
+
+  <div id="authSection">
+    <input type="text" id="usernameInput" placeholder="Enter your username" />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="appSection" class="hidden">
+    <input type="date" id="workoutDate" />
+    <input type="text" id="workoutName" placeholder="Workout Name (e.g., Chest)" />
+    <textarea id="workoutDetails" rows="6" placeholder="Workout Details..."></textarea>
+    <button onclick="saveWorkout()">Save Workout</button>
+    <div id="recentWorkoutBox" class="hidden"></div>
+  </div>
 
   <script>
     const firebaseConfig = {
@@ -34,20 +47,63 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    let currentUser = null;
+
     const workoutDate = document.getElementById('workoutDate');
     const workoutName = document.getElementById('workoutName');
     const workoutDetails = document.getElementById('workoutDetails');
     const recentWorkoutBox = document.getElementById('recentWorkoutBox');
+
+    const authSection = document.getElementById('authSection');
+    const appSection = document.getElementById('appSection');
+    const logoutBtn = document.getElementById('logoutBtn');
 
     workoutDate.valueAsDate = new Date();
 
     workoutDate.addEventListener('change', loadWorkout);
     workoutName.addEventListener('input', showRecentWorkoutWithSameName);
 
+    function login() {
+      const username = document.getElementById('usernameInput').value.trim();
+      if (!username) return alert('Enter a username.');
+
+      currentUser = username;
+      localStorage.setItem('workoutUser', username);
+
+      authSection.classList.add('hidden');
+      appSection.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+
+      loadWorkout();
+    }
+
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem('workoutUser');
+      authSection.classList.remove('hidden');
+      appSection.classList.add('hidden');
+      logoutBtn.classList.add('hidden');
+    }
+
+    function loadSavedUser() {
+      const savedUser = localStorage.getItem('workoutUser');
+      if (savedUser) {
+        currentUser = savedUser;
+        authSection.classList.add('hidden');
+        appSection.classList.remove('hidden');
+        logoutBtn.classList.remove('hidden');
+        loadWorkout();
+      }
+    }
+
     async function loadWorkout() {
+      if (!currentUser) return;
+
       const date = workoutDate.value;
       if (!date) return;
-      const doc = await db.collection('workouts').doc(date).get();
+
+      const docId = `${currentUser}_${date}`;
+      const doc = await db.collection('workouts').doc(docId).get();
 
       if (doc.exists) {
         const data = doc.data();
@@ -61,6 +117,8 @@
     }
 
     async function showRecentWorkoutWithSameName() {
+      if (!currentUser) return;
+
       const name = workoutName.value.trim();
       if (!name) {
         recentWorkoutBox.classList.add('hidden');
@@ -68,6 +126,7 @@
       }
 
       const snapshot = await db.collection('workouts')
+        .where('user', '==', currentUser)
         .where('name', '==', name)
         .orderBy('timestamp', 'desc')
         .limit(1)
@@ -83,12 +142,18 @@
     }
 
     async function saveWorkout() {
+      if (!currentUser) return;
+
       const date = workoutDate.value;
       const name = workoutName.value.trim();
       const details = workoutDetails.value.trim();
       if (!date || !name || !details) return alert('Fill in all fields.');
 
-      await db.collection('workouts').doc(date).set({
+      const docId = `${currentUser}_${date}`;
+
+      await db.collection('workouts').doc(docId).set({
+        user: currentUser,
+        date,
         name,
         details,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -98,7 +163,7 @@
       showRecentWorkoutWithSameName();
     }
 
-    loadWorkout();
+    loadSavedUser();
   </script>
 </body>
 </html>
