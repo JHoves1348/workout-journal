@@ -1,144 +1,137 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Workout Journal</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 1rem; }
-    #login-section, #app-section { margin-bottom: 2rem; }
-    #workout-list { list-style: none; padding-left: 0; }
-    #workout-list li { background: #eee; margin: 0.5rem 0; padding: 0.5rem; border-radius: 5px; }
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 2rem;
+    }
+    #login-section, #journal-section {
+      display: none;
+    }
+    .workout {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body>
   <h1>Workout Journal</h1>
 
   <div id="login-section">
-    <label>
-      Enter Username:
-      <input type="text" id="username-input" />
-    </label>
-    <button id="login-btn">Log In</button>
+    <input id="username" placeholder="Enter your username" />
+    <button onclick="login()">Log In</button>
   </div>
 
-  <div id="app-section" style="display:none;">
-    <h2>Welcome, <span id="current-user"></span>!</h2>
-
-    <form id="workout-form">
-      <input type="text" id="workout-input" placeholder="Workout description" required />
-      <button type="submit">Add Workout</button>
-    </form>
-
-    <ul id="workout-list"></ul>
-    <button id="logout-btn">Log Out</button>
+  <div id="journal-section">
+    <p>Logged in as <strong id="display-user"></strong> <button onclick="logout()">Log out</button></p>
+    <textarea id="workout-input" placeholder="Log your workout here..." rows="4" cols="50"></textarea><br>
+    <button onclick="saveWorkout()">Save Workout</button>
+    <h2>Your Workouts</h2>
+    <div id="workout-list"></div>
   </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
   <script>
-    // IndexedDB Setup
-    let db;
-    const DB_NAME = 'WorkoutJournalDB';
-    const DB_VERSION = 1;
-
-    const openDB = () => {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = (e) => {
-          db = e.target.result;
-          if (!db.objectStoreNames.contains('workouts')) {
-            db.createObjectStore('workouts', { keyPath: 'id', autoIncrement: true });
-          }
-        };
-        request.onsuccess = () => {
-          db = request.result;
-          resolve();
-        };
-        request.onerror = (e) => reject(e);
-      });
+    // 🔧 Replace this with your real Firebase config
+    const firebaseConfig = {
+    apiKey: "AIzaSyC3Jon13meRVHu1-Wj7nGQbrevEi8LynbU",
+    authDomain: "workoutjournal-c02f1.firebaseapp.com",
+    projectId: "workoutjournal-c02f1",
+    storageBucket: "workoutjournal-c02f1.firebasestorage.app",
+    messagingSenderId: "554426612853",
+    appId: "1:554426612853:web:4bc9958b0e3fc18c758c3c"
     };
 
-    const addWorkoutToDB = (username, text) => {
-      const tx = db.transaction('workouts', 'readwrite');
-      const store = tx.objectStore('workouts');
-      store.add({ username, text });
-    };
-
-    const getWorkoutsFromDB = (username) => {
-      return new Promise((resolve) => {
-        const tx = db.transaction('workouts', 'readonly');
-        const store = tx.objectStore('workouts');
-        const workouts = [];
-        store.openCursor().onsuccess = function (event) {
-          const cursor = event.target.result;
-          if (cursor) {
-            if (cursor.value.username === username) {
-              workouts.push(cursor.value.text);
-            }
-            cursor.continue();
-          } else {
-            resolve(workouts);
-          }
-        };
-      });
-    };
-
-    // DOM Elements
-    const loginSection = document.getElementById('login-section');
-    const appSection = document.getElementById('app-section');
-    const usernameInput = document.getElementById('username-input');
-    const loginBtn = document.getElementById('login-btn');
-    const currentUserSpan = document.getElementById('current-user');
-    const workoutForm = document.getElementById('workout-form');
-    const workoutInput = document.getElementById('workout-input');
-    const workoutList = document.getElementById('workout-list');
-    const logoutBtn = document.getElementById('logout-btn');
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
     let currentUser = null;
 
-    function renderWorkouts(workouts) {
-      workoutList.innerHTML = '';
-      workouts.forEach((w) => {
-        const li = document.createElement('li');
-        li.textContent = w;
-        workoutList.appendChild(li);
+    // Elements
+    const loginSection = document.getElementById("login-section");
+    const journalSection = document.getElementById("journal-section");
+    const usernameInput = document.getElementById("username");
+    const displayUser = document.getElementById("display-user");
+    const workoutInput = document.getElementById("workout-input");
+    const workoutList = document.getElementById("workout-list");
+
+    function login() {
+      const username = usernameInput.value.trim();
+      if (!username) return alert("Please enter a username.");
+      currentUser = username;
+      localStorage.setItem("username", currentUser);
+      displayUser.textContent = currentUser;
+      loginSection.style.display = "none";
+      journalSection.style.display = "block";
+      loadWorkouts();
+    }
+
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem("username");
+      loginSection.style.display = "block";
+      journalSection.style.display = "none";
+      workoutList.innerHTML = "";
+    }
+
+    function saveWorkout() {
+      const workout = workoutInput.value.trim();
+      if (!workout) return;
+      db.collection("workouts").add({
+        username: currentUser,
+        text: workout,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => {
+        workoutInput.value = "";
+        loadWorkouts();
+      }).catch((err) => {
+        console.error("Error saving workout:", err);
+        alert("Failed to save workout.");
       });
     }
 
-    loginBtn.onclick = async () => {
-      const name = usernameInput.value.trim();
-      if (!name) {
-        alert('Please enter a username');
-        return;
+    function loadWorkouts() {
+      workoutList.innerHTML = "<p>Loading...</p>";
+      db.collection("workouts")
+        .where("username", "==", currentUser)
+        .orderBy("timestamp", "desc")
+        .get()
+        .then((snapshot) => {
+          workoutList.innerHTML = "";
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const div = document.createElement("div");
+            div.className = "workout";
+            div.textContent = data.text;
+            workoutList.appendChild(div);
+          });
+        });
+    }
+
+    // Auto-login if stored
+    window.onload = function () {
+      const storedUser = localStorage.getItem("username");
+      if (storedUser) {
+        currentUser = storedUser;
+        displayUser.textContent = currentUser;
+        loginSection.style.display = "none";
+        journalSection.style.display = "block";
+        loadWorkouts();
+      } else {
+        loginSection.style.display = "block";
       }
-      currentUser = name;
-      currentUserSpan.textContent = currentUser;
-      loginSection.style.display = 'none';
-      appSection.style.display = 'block';
-      const workouts = await getWorkoutsFromDB(currentUser);
-      renderWorkouts(workouts);
     };
-
-    workoutForm.onsubmit = async (e) => {
-      e.preventDefault();
-      const workout = workoutInput.value.trim();
-      if (!workout) return;
-      addWorkoutToDB(currentUser, workout);
-      const workouts = await getWorkoutsFromDB(currentUser);
-      renderWorkouts(workouts);
-      workoutInput.value = '';
-      workoutInput.focus();
-    };
-
-    logoutBtn.onclick = () => {
-      currentUser = null;
-      loginSection.style.display = 'block';
-      appSection.style.display = 'none';
-      usernameInput.value = '';
-      workoutList.innerHTML = '';
-    };
-
-    // Initialize DB on page load
-    openDB();
   </script>
 </body>
 </html>
