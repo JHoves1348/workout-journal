@@ -17,18 +17,20 @@
 <h1>Workout Journal</h1>
 
 <div id="loginSection">
-  <p>Please log in with your Google account:</p>
+  <p>Please enter your username to log in:</p>
+  <input type="text" id="usernameInput" placeholder="Your username" />
   <button id="loginBtn">Log In</button>
 </div>
 
 <div id="appSection">
+  <p>Logged in as <span id="displayUsername"></span> <button id="logoutBtn" style="float:right;">Log Out</button></p>
+
   <label for="workoutDate">Select Date:</label>
   <input type="date" id="workoutDate" />
 
   <textarea id="workoutText" placeholder="Write your workout..."></textarea>
   <br />
   <button id="saveWorkoutBtn">Save Workout</button>
-  <button id="logoutBtn" style="float:right;">Log Out</button>
 
   <h3>Past 6 Workouts</h3>
   <div id="pastWorkouts">Loading...</div>
@@ -36,11 +38,10 @@
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
 <script>
-  // Your Firebase config - REPLACE these with your own project's values!
+  // Your Firebase config - REPLACE with your own!
   const firebaseConfig = {
     apiKey: "AIzaSyC3Jon13meRVHu1-Wj7nGQbrevEi8LynbU",
     authDomain: "workoutjournal-c02f1.firebaseapp.com",
@@ -50,15 +51,15 @@
     appId: "1:554426612853:web:4bc9958b0e3fc18c758c3c"
   };
 
-  // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
   const db = firebase.firestore();
 
   const loginSection = document.getElementById('loginSection');
   const appSection = document.getElementById('appSection');
   const loginBtn = document.getElementById('loginBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  const usernameInput = document.getElementById('usernameInput');
+  const displayUsername = document.getElementById('displayUsername');
   const workoutDate = document.getElementById('workoutDate');
   const workoutText = document.getElementById('workoutText');
   const saveWorkoutBtn = document.getElementById('saveWorkoutBtn');
@@ -66,40 +67,48 @@
 
   let currentUser = null;
 
-  // Login with Google popup
-  loginBtn.onclick = () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(e => alert("Login failed: " + e.message));
-  };
-
-  // Logout
-  logoutBtn.onclick = () => {
-    auth.signOut();
-  };
-
-  // Listen for auth state changes
-  auth.onAuthStateChanged(async user => {
-    if (user) {
-      currentUser = user.email;
-      loginSection.style.display = 'none';
-      appSection.style.display = 'block';
-
-      // Set date picker to today on load
-      workoutDate.value = new Date().toISOString().slice(0,10);
-
-      // Load workout for selected date
-      await loadWorkoutForDate(workoutDate.value);
-
-      // Load past 6 workouts
-      await loadPastWorkouts();
-    } else {
-      currentUser = null;
-      loginSection.style.display = 'block';
-      appSection.style.display = 'none';
+  // Check if username saved in localStorage (auto-login)
+  function checkLogin() {
+    const savedUser = localStorage.getItem('workoutUser');
+    if (savedUser) {
+      loginUser(savedUser);
     }
-  });
+  }
 
-  // Load workout for a specific date
+  // Login function
+  function loginUser(username) {
+    currentUser = username;
+    localStorage.setItem('workoutUser', username);
+    displayUsername.textContent = username;
+    loginSection.style.display = 'none';
+    appSection.style.display = 'block';
+
+    // Set date picker default to today
+    workoutDate.value = new Date().toISOString().slice(0,10);
+
+    loadWorkoutForDate(workoutDate.value);
+    loadPastWorkouts();
+  }
+
+  // Logout function
+  function logoutUser() {
+    localStorage.removeItem('workoutUser');
+    currentUser = null;
+    loginSection.style.display = 'block';
+    appSection.style.display = 'none';
+  }
+
+  loginBtn.onclick = () => {
+    const username = usernameInput.value.trim();
+    if (!username) {
+      alert('Please enter a username.');
+      return;
+    }
+    loginUser(username);
+  };
+
+  logoutBtn.onclick = logoutUser;
+
   async function loadWorkoutForDate(date) {
     workoutText.value = "Loading...";
     try {
@@ -120,7 +129,6 @@
     }
   }
 
-  // Save or update workout for selected date
   async function saveWorkout() {
     const date = workoutDate.value;
     const text = workoutText.value.trim();
@@ -138,14 +146,12 @@
         .get();
 
       if (!snapshot.empty) {
-        // Update existing
         const docId = snapshot.docs[0].id;
         await db.collection('workouts').doc(docId).update({
           text,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
       } else {
-        // Add new workout
         await db.collection('workouts').add({
           username: currentUser,
           date,
@@ -160,7 +166,6 @@
     }
   }
 
-  // Load last 6 workouts and display them
   async function loadPastWorkouts() {
     pastWorkouts.innerHTML = "Loading...";
     try {
@@ -188,9 +193,12 @@
     }
   }
 
-  // Update workout text when date changes
   workoutDate.addEventListener('change', () => loadWorkoutForDate(workoutDate.value));
   saveWorkoutBtn.addEventListener('click', saveWorkout);
+
+  // Auto-login if username saved
+  checkLogin();
 </script>
+
 </body>
 </html>
