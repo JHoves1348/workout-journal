@@ -315,42 +315,40 @@
     }
   }
 
+  // NEW: On date change, load the most recent workout for that date (auto-fill name + details)
   workoutDate.addEventListener('change', async () => {
-  currentWorkoutDocId = null;
-  workoutName.value = '';
-  workoutText.value = '';
-  recentWorkoutContent.innerHTML = 'Loading...';
+    currentWorkoutDocId = null;
+    workoutName.value = '';
+    workoutText.value = '';
+    recentWorkoutContent.innerHTML = 'Loading...';
 
-  try {
-    const snapshot = await db.collection('workouts')
-      .where('username', '==', currentUser)
-      .where('date', '==', workoutDate.value)
-      .orderBy('timestamp', 'desc')
-      .limit(1)
-      .get();
+    try {
+      const snapshot = await db.collection('workouts')
+        .where('username', '==', currentUser)
+        .where('date', '==', workoutDate.value)
+        .orderBy('timestamp', 'desc')
+        .limit(1)
+        .get();
 
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      const data = doc.data();
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        const data = doc.data();
 
-      workoutName.value = data.name || '';
-      workoutText.value = data.text || '';
-      currentWorkoutDocId = doc.id;
+        workoutName.value = data.name || '';
+        workoutText.value = data.text || '';
+        currentWorkoutDocId = doc.id;
 
-      // Load recent workout summary for this workout name
-      loadMostRecentWorkoutWithName(data.name);
-    } else {
-      // No workout found for this date
-      workoutName.value = '';
-      workoutText.value = '';
-      recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
+        loadMostRecentWorkoutWithName(data.name);
+      } else {
+        workoutName.value = '';
+        workoutText.value = '';
+        recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
+      }
+    } catch (error) {
+      console.error('Error loading workout for selected date:', error);
+      recentWorkoutContent.innerHTML = 'Error loading workout.';
     }
-  } catch (e) {
-    console.error('Error loading workout for date:', e);
-    recentWorkoutContent.innerHTML = 'Error loading workout.';
-  }
-});
-
+  });
 
   workoutName.addEventListener('input', () => {
     loadMostRecentWorkoutWithName(workoutName.value.trim());
@@ -363,7 +361,6 @@
 
   checkLogin();
 </script>
-
 
 </body>
 </html>
