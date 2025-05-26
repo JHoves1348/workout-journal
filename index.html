@@ -317,38 +317,50 @@
 
   // NEW: On date change, load the most recent workout for that date (auto-fill name + details)
   workoutDate.addEventListener('change', async () => {
-    currentWorkoutDocId = null;
+  const date = workoutDate.value;
+  if (!date) {
     workoutName.value = '';
     workoutText.value = '';
-    recentWorkoutContent.innerHTML = 'Loading...';
+    currentWorkoutDocId = null;
+    recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
+    return;
+  }
 
-    try {
-      const snapshot = await db.collection('workouts')
-        .where('username', '==', currentUser)
-        .where('date', '==', workoutDate.value)
-        .orderBy('timestamp', 'desc')
-        .limit(1)
-        .get();
+  try {
+    // Query workouts saved for this user & date
+    const snapshot = await db.collection('workouts')
+      .where('username', '==', currentUser)
+      .where('date', '==', date)
+      .orderBy('timestamp', 'desc')
+      .limit(1)
+      .get();
 
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      const data = doc.data();
 
-        workoutName.value = data.name || '';
-        workoutText.value = data.text || '';
-        currentWorkoutDocId = doc.id;
+      workoutName.value = data.name || '';
+      workoutText.value = data.text || '';
+      currentWorkoutDocId = doc.id;
 
-        loadMostRecentWorkoutWithName(data.name);
-      } else {
-        workoutName.value = '';
-        workoutText.value = '';
-        recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
-      }
-    } catch (error) {
-      console.error('Error loading workout for selected date:', error);
-      recentWorkoutContent.innerHTML = 'Error loading workout.';
+      // Also update recent workout display
+      loadMostRecentWorkoutWithName(data.name);
+    } else {
+      // No saved workout for this date
+      workoutName.value = '';
+      workoutText.value = '';
+      currentWorkoutDocId = null;
+      recentWorkoutContent.innerHTML = 'Select or enter a workout name to see recent data.';
     }
-  });
+  } catch (error) {
+    console.error('Error loading workout for date:', error);
+    workoutName.value = '';
+    workoutText.value = '';
+    currentWorkoutDocId = null;
+    recentWorkoutContent.innerHTML = 'Error loading workout.';
+  }
+});
+
 
   workoutName.addEventListener('input', () => {
     loadMostRecentWorkoutWithName(workoutName.value.trim());
